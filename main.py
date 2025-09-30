@@ -1,10 +1,15 @@
+import pathlib
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from typing import Optional
 import asyncio
 import time
 
+from fastapi.staticfiles import StaticFiles
+
 app = FastAPI()
+static_dir = pathlib.Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/")
 def root():
@@ -13,6 +18,11 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok", "ts": time.time()}
+
+@app.get("/ws_test.html", response_class=HTMLResponse)
+def websocket_test_page():
+    html_path = static_dir / "ws_test.html"
+    return html_path.read_text(encoding="utf-8")
 
 # ---- WebSocket echo endpoint ----
 @app.websocket("/ws")
