@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WS Echo Test</title>
+  <style>body{font-family:system-ui,Segoe UI,Arial;margin:20px} #log{white-space:pre-wrap;border:1px solid #ddd;padding:10px;height:200px;overflow:auto}</style>
+</head>
+<body>
+  <h1>WebSocket Echo Test</h1>
+  <input id="msg" placeholder="type message..." />
+  <button id="send">Send</button>
+  <div id="log"></div>
+
+  <script>
+    const log = (s) => { const el = document.getElementById("log"); el.textContent += s + "\n"; el.scrollTop = el.scrollHeight; };
+
+    // build ws/wss URL on same host + /ws
+    const proto = (location.protocol === "https:") ? "wss" : "ws";
+    const wsUrl = `${proto}://${location.host}/ws`;
+    log("connecting to " + wsUrl);
+
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => log("open");
+    ws.onmessage = (e) => log("recv: " + e.data);
+    ws.onclose = (e) => log("close " + e.code);
+    ws.onerror = (e) => log("error: " + (e.message || e));
+
+    document.getElementById("send").onclick = () => {
+      const v = document.getElementById("msg").value;
+      ws.send(v);
+    };
+  </script>
+</body>
+</html>

@@ -1,54 +1,50 @@
-"""
-Simple FastAPI application for IIS test
-======================================
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+from typing import Optional
+import asyncio
+import time
 
-This FastAPI app defines a couple of basic endpoints so you can verify that
-FastAPI works correctly when hosted behind Microsoft Internet Information
-Services (IIS) using the HttpPlatformHandler module.  The root endpoint
-returns a greeting, and there is a second endpoint that accepts a path
-parameter and an optional query string parameter.  These endpoints are kept
-simple on purpose—once you have them working through IIS you can expand
-the application as needed.
-"""
-
-from fastapi import FastAPI
-from typing import Union
-
-# Create the FastAPI application instance
-app = FastAPI(title="IIS FastAPI Test",
-              description="Basic FastAPI app served by IIS via HttpPlatformHandler",
-              version="0.1.0")
-
+app = FastAPI()
 
 @app.get("/")
-async def read_root() -> dict:
-    """Root endpoint that returns a simple JSON greeting.
+def root():
+    return {"message": "Hello from FastAPI behind IIS/ARR!"}
 
-    Returns
-    -------
-    dict
-        A dictionary with a welcome message.
-    """
-    return {"message": "Hello from FastAPI on IIS!"}
+@app.get("/health")
+def health():
+    return {"status": "ok", "ts": time.time()}
 
+# ---- WebSocket echo endpoint ----
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    await ws.accept()
+    try:
+        # initial hello so we can see that upgrade worked
+        await ws.send_text("connected")
+        # simple ping loop on the side (optional)
+        async def pinger():
+            while True:
+                await asyncio.sleep(15)
+                try:
+                    await ws.send_text("ping")
+                except Exception:
+                    break
 
-@app.get("/items/{item_id}")
-async def read_item(item_id: int, q: Union[str, None] = None) -> dict:
-    """Return item information.
+        ping_task = asyncio.create_task(pinger())
 
-    Parameters
-    ----------
-    item_id : int
-        The ID of the item requested.
-    q : str | None, optional
-        An optional query string parameter that can be used to filter or
-        customise the response.  Defaults to ``None``.
-
-    Returns
-    -------
-    dict
-        A dictionary containing the item ID and the value of ``q`` (if
-        provided).
-    """
-    return {"item_id": item_id, "q": q}
-
+        # echo loop
+        while True:
+            msg = await ws.receive_text()
+            if msg.lower() in {"quit", "close", "exit"}:
+                await ws.send_text("bye")
+                await ws.close()
+                break
+            await ws.send_text(f"echo: {msg}")
+    except WebSocketDisconnect:
+        pass
+    finally:
+        # ensure background task is cancelled
+        for t in asyncio.all_tasks():
+            # cancel only our ping task
+            if t is not asyncio.current_task() and t.get_coro().__name__ == "pinger":
+                t.cancel()
